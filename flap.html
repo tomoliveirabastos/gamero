@@ -1,0 +1,544 @@
+<head>
+    <link rel="stylesheet" type="text/css" href=".\gamehero.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width">
+</head>
+<body>
+    <div id="allthethings"><div align="center" id="single">Iniciar</div></div>
+    <canvas id="cnv"></canvas>
+</body>
+<audio id="zone" controls loop style="display:none"><source src=".\songs\song001.wav" type="audio/wav"></audio>
+<audio id="boss" controls loop style="display:none"><source src=".\songs\song002.wav" type="audio/wav"></audio>
+<script src="virtualpad.js" type="text/javascript"></script>
+<script type="text/javascript">
+'use strict';
+document.querySelector('#single').addEventListener('click',(e)=>{e.target.parentElement.remove();start();});
+let joystick= new VirtualJoystick({container: document.querySelector('canvas'), mouseSupport:true});
+let start = ()=>{
+    const canvas = document.querySelector('canvas');
+    const ctx = canvas.getContext('2d');
+    let barraOBJ = [];
+    let ms = 1000;
+    //FRUTA
+    class Fruta{
+        constructor(x, y, size){
+            this.x =x;
+            this.y =y;
+            this.size =size;
+        }
+        renderFruta(){
+            ctx.fillStyle = "#54aafb";
+            roundRect(ctx, this.x, this.y, this.size, this.size, 15, true);
+        }
+        newFruta(){
+            this.x = Math.floor(Math.random() * canvas.width - 50);
+            this.y = Math.floor(Math.random() * canvas.height - 50);
+        }
+    }
+    class FrutaShoot{
+        constructor(x, y, size){
+            this.x = x;
+            this.y =y;
+            this.size = size;
+            this.shoot = 10;
+            this.toShoot = [];
+        }
+        letShoot(){
+            if(this.shoot < 1){return false;}
+            let move = personagem.move;
+            this.toShoot.push({
+                x :personagem.x,
+                y : personagem.y,
+                moveTo: move
+            });
+            this.shoot --;
+        }
+        async renderShoot(){
+            if(!this.toShoot){return false;}
+            ctx.fillStyle = "#54aafb";
+            roundRect(ctx, this.toShoot.x , this.toShoot.y , this.size, this.size, 15, true);
+            await new Promise(r=>{setTimeout(r, 1)});
+        }
+    }
+    //Personagem
+    class Personagem{
+        constructor(x, y, size, speed = 10){
+            this.x = x;
+            this.y = y;
+            this.size = size;
+            this.move = 0;
+            this.speed = speed;
+            this.img = new Image();
+            this.count = 0;
+            this.srcX = 24;
+            this.srcY = 32;
+        }
+        getView(){
+            this.img.src = "img.png";
+            if(this.count > 7){
+                this.count = 0;
+            }
+            ctx.drawImage(
+                this.img, this.srcX * this.count,this.srcY * this.move, this.img.width/8, this.img.height/4,
+                this.x, this.y, this.img.width/8, this.img.height/4
+            );
+        }        
+    }
+    class Enemy{
+        constructor(x, y, size, speed = 5){
+            this.x = x;
+            this.y = y;
+            this.size = size;
+            this.move = 0;
+            this.speed = speed;
+            this.color = "#724f66";
+            this.img = new Image();
+            this.count = 0;
+            this.srcX = 24;
+            this.srcY = 32;
+            this.allEnemies = [];
+            this.died = 0;
+            this.collideActived = false;
+            this.pushEnemy = true;
+        }
+        enemyPUSH(){
+            if(this.pushEnemy === false){return false;}
+            this.allEnemies.push({
+                x: this.x,
+                y: this.y,
+                speed: Math.random() * 1
+            })
+        }
+    }
+    class Boss{
+        constructor(x, y, size){
+            this.x = Math.floor(Math.random() * canvas.width);
+            this.y = Math.floor(Math.random() * canvas.height);
+            this.size = size;
+            this.life = 15;
+            this.fire = [];
+            this.bossActived = false;
+            this.died = 0;
+            this.speed = 1;
+            this.move = Math.floor(Math.random() * 4);
+            this.desX = Math.floor(Math.random() * canvas.width);
+            this.desY = Math.floor(Math.random() * canvas.height);
+        }
+        
+        moveBoss(){
+            if(this.bossActived === false){return false;}
+            this.x <= this.desX ? this.x += this.speed : this.x -= this.speed;
+            this.y <= this.desY ? this.y += this.speed : this.y -= this.speed;
+
+            let distX = (this.x + this.size/2) - (this.desX + this.size/2);
+            let distY = (this.y + this.size/2) - (this.desY + this.size/2);
+            let sumW = this.size;
+            let sumH = this.size;
+            if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                this.desX = Math.floor(Math.random() * canvas.width);
+                this.desY = Math.floor(Math.random() * canvas.height);
+            }
+            this.renderBoss();
+            this.fillDamage();
+        }
+        renderBoss(){
+            ctx.fillStyle = "#8d5ba9";
+            roundRect(ctx, this.x, this.y, this.size, this.size, this.size -10, true);
+        }
+        fillDamage(){
+            if(this.bossActived === false){return false;}
+            for(let i =0;i< shoot.toShoot.length;i++){    
+                let sh = shoot.toShoot[i];
+                let distX = (sh.x + shoot.size/2) - (this.x + this.size/2);
+                let distY = (sh.y + shoot.size/2) - (this.y + this.size/2);
+                let sumW = (this.size + shoot.size)/2;
+                let sumH = (this.size + shoot.size)/2;
+                if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                    this.life--;
+                    shoot.toShoot.splice(i, 1);
+                }
+            }
+        }
+    }
+    class BossShoot{
+        constructor(x, y, size = 10){
+            this.x = x;
+            this.x = y;
+            this.size = size;
+            this.filaFire = [];
+        }
+        goFire(){
+            if(boss.bossActived === false){return false;}
+            this.filaFire.push(
+                {
+                    x: boss.x,
+                    y: boss.y,
+                    dx: personagem.x,
+                    dy: personagem.y
+                }
+            );
+        }
+        shootFire(){
+            for(let i = 0; i < this.filaFire.length;i++){
+                let fire = this.filaFire[i];
+                ctx.fillStyle = "#ede9f4";
+                roundRect(ctx, fire.x, fire.y, this.size, this.size, this.size -5, true);
+            }
+        }
+        moveFire(){
+            for(let i = 0; i < this.filaFire.length;i++){
+                let fire = this.filaFire[i];
+                let f = followPositionStreight({x: fire.x, y: fire.y},{x: fire.dx, y: fire.dy});
+                this.filaFire[i].x = f.x;
+                this.filaFire[i].y = f.y;
+                if(
+                    (fire.x === fire.dx && fire.y === fire.dy)||
+                    fire.x >= canvas.width -50||
+                    fire.y <= 10||
+                    fire.x <= 10||
+                    fire.y >= canvas.height -50
+                ){this.filaFire.splice(i, 1);}
+                let distX = (fire.x + this.size/2) - (personagem.x + personagem.size/2);
+                let distY = (fire.y + this.size/2) - (personagem.y + personagem.size/2);
+                let sumW = (this.size + personagem.size)/2;
+                let sumH = (this.size + personagem.size)/2;
+                if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                    window.location.reload();
+                }   
+            }
+        }
+    }
+    class Mundo{
+        constructor(){
+            this.boss = new Boss();
+            this.bossMUSIC = document.querySelector('#boss');
+            this.zoneMUSIC = document.querySelector('#zone');
+        }
+        main(){
+            this.boss.bossActived === false && enemy.died > 15 ? this.activeBoss() : false;
+            this.bossDied();
+            this.changeMusic();
+            this.collideAttack();
+        }
+        changeMusic(){
+            if(boss.bossActived === false){
+                this.bossMUSIC.pause();
+                this.zoneMUSIC.play();
+            }else{
+                this.zoneMUSIC.pause();
+                this.bossMUSIC.play();
+            }
+        }
+        bossDied(){
+            if(this.boss.life < 1){
+                this.boss.bossActived = false;
+                this.enemy.collideActived = false;
+                this.enemy.color = "#724f66";
+                this.changeMusic();
+                this.enemy.died = 0;
+                this.boss.life = 15;
+            }
+        }  
+        activeBoss(){
+            if(this.boss.bossActived === false){
+                boss.bossActived = true;
+                enemy.collideActived = true;
+                enemy.color = "#140d43";
+                this.changeMusic();
+                this.died++;
+            }
+        }
+        collideAttack = ()=>{
+            let sh = shoot.toShoot;
+            for(let i = 0; i < sh.length; i++){
+                let s = sh[i];
+                for(let j = 0; j < enemy.allEnemies.length; j++){
+                    let all = enemy.allEnemies[j];
+                    let distX = (all.x + enemy.size/2) - (s.x + shoot.size/2);
+                    let distY = (all.y + enemy.size/2) - (s.y + shoot.size/2);
+                    let sumW = (enemy.size + shoot.size)/2;
+                    let sumH = (enemy.size + shoot.size)/2;
+                    if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                        enemy.allEnemies.splice(j, 1);
+                        enemy.died++;
+                    }
+                }
+            }
+            if(enemy.collideActived === true){
+                for(let i = 0; i < enemy.allEnemies.length; i++){
+                    let all = enemy.allEnemies[i];
+                    let distX = (all.x + enemy.size/2) - (personagem.x + personagem.size/2);
+                    let distY = (all.y + enemy.size/2) - (personagem.y + personagem.size/2);
+                    let sumW = (enemy.size + shoot.size)/2;
+                    let sumH = (enemy.size + shoot.size)/2;
+                    if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                        window.location.reload();
+                    }
+                }
+            }
+        }
+    }
+    let followPositionStreight = (elem, coordenadasAlvo)=>{
+        let entityPos = elem;
+        let diffX = coordenadasAlvo.x - entityPos.x;
+        let diffY = (coordenadasAlvo.y - entityPos.y) / (coordenadasAlvo.x - entityPos.x);
+        let newX = entityPos.x + Math.sign(diffX) ? entityPos.x + Math.sign(diffX) : elem.x;
+        let newY = entityPos.y + diffY * Math.sign(diffX) ? entityPos.y + diffY * Math.sign(diffX) : elem.y;
+        let p = {x : newX, y : newY, diffx: diffX, diffy: diffY };
+        return p;
+    }
+    let boss = new Boss(10, 10, 100);
+    let bossShoot = new BossShoot();
+    let mundo = new Mundo();
+    let background = ()=>{
+       ctx.fillStyle = "#cb7710";
+       ctx.fillRect(0,0,canvas.width, canvas.height);
+    };
+    let countShoot = ()=>{
+        ctx.font = "25px impact";
+        ctx.fillText(`Fire: ${shoot.shoot}`, canvas.width/2, 30);
+    }
+    let update = ()=>{
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        ctx.save();
+        background();
+        renderBarra();
+        renderPersonagem();
+        captureFruta();
+        positionToShoot();
+        shoot.renderShoot();
+        collide();
+        countShoot();
+        renderEnemies();
+        moveShoot();
+        boss.moveBoss();
+        bossShoot.shootFire();
+        mundo.main();
+        ctx.restore();
+    };
+    let loop = () =>{
+        update();
+        requestAnimationFrame(loop, canvas);
+    };
+    let segueBarra = async(w, h,cx, cy)=>{
+        let colors = [
+            '#cbca10',
+            '#73ca10',
+            '#73cac9',
+            '#ceaafb',
+            '#3e0afb',
+            '#fadea4',
+            '#ec0b16'
+        ];
+        let objDessaFuncao = {
+            x : cx,
+            y : cy,
+            Height: h,
+            Width: w,
+            speedBarra: 20,
+            color: colors[Math.floor(Math.random() * colors.length)]
+        };
+        barraOBJ.push(objDessaFuncao);
+        lessBarra();
+    };
+    let lessBarra = ()=>{
+        for(let i =0; i < barraOBJ.length; i++){
+            let barra = barraOBJ[i];
+            barra.x -= barra.speedBarra;
+            if(barra.x <= 0){
+                barraOBJ.splice(i, 1);
+            }
+        }
+    };
+    let renderBarra = ()=>{
+        for(let  i = 0; i < barraOBJ.length; i++){
+            let barra = barraOBJ[i];
+            ctx.fillStyle = barra.color;
+            ctx.fillRect(barra.x, barra.y, barra.Width, barra.Height);
+        }
+    }
+    let sleep = async()=>{
+        let w = Math.floor(Math.random() * (canvas.width/2));
+        let h = Math.floor(Math.random() * Math.sqrt(canvas.height));
+        let cx = Math.floor(Math.random() * canvas.width);
+        let cy = Math.floor(Math.random() * canvas.height);
+        segueBarra(
+            w < 2 ? 5 : w, 
+            h < 2 ? 5 : h,
+            cx,
+            cy
+        );
+        ms = Math.floor(Math.random() * 1000);
+        return new Promise(r =>{ setTimeout(r, ms) });
+    };
+    setInterval(sleep, 1000);
+    let setCanvas = ()=>{
+        canvas.width = document.querySelector('body').offsetWidth;
+        canvas.height = document.querySelector('body').offsetHeight;
+    };
+    setCanvas();
+    //
+    //FUNCOES DO PERSONAGEM
+    //
+    let personagem = new Personagem(0,0, 28, 3);
+    document.addEventListener('keydown', (e)=>{movement(e.code);});
+    let movement = (tecla)=>{
+        if(!tecla){return false;}
+        let arr = {
+            'ArrowDown' : ()=>{return personagem.y < canvas.height-30 ? (personagem.y += personagem.speed, personagem.move = 0, personagem.count++) : false},
+            'ArrowUp': ()=>{return personagem.y >= 0 ? (personagem.y -= personagem.speed,personagem.move = 1,personagem.count++) : false},
+            'ArrowLeft': ()=>{return personagem.x >= 0 ? (personagem.x -= personagem.speed, personagem.move = 2, personagem.count++) : false},
+            'ArrowRight': ()=>{return personagem.x < canvas.width -30 ? (personagem.x += personagem.speed, personagem.move = 3,personagem.count++) : false},
+            'Space': ()=>{return shoot.letShoot();}
+        };
+        if(arr[tecla]){return arr[tecla]();}
+    };
+    let positionToShoot = ()=>{
+        shoot.x = personagem.x;
+        shoot.y = personagem.y;
+    }
+    let renderPersonagem = ()=>{
+        personagem.getView();
+    };
+    let collide = ()=>{
+        for(let i = 0; i < barraOBJ.length ; i++){
+            let barra = barraOBJ[i];
+            let distX = (personagem.x + personagem.size/2) - (barra.x + barra.Width/2);
+            let distY = (personagem.y + personagem.size/2) - (barra.y + barra.Height/2);
+
+            let sumW = (personagem.size + barra.Width)/2;
+            let sumH = (personagem.size + barra.Height)/2;
+
+            if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                let overX = sumW - Math.abs(distX);
+                let overY = sumH - Math.abs(distY);
+                if(overX > overY){
+                   personagem.y = distY > 0 ? 
+                    personagem.y + overY :
+                    personagem.y - overY;
+                }
+                if(overY > overX){
+                    personagem.x = distX > 0 ? 
+                    personagem.x + overX :
+                    personagem.x - overX;
+                }
+            }
+        }
+    }
+    //FUNCOES FRUTAS
+    let frutas = new Fruta(
+        Math.floor(Math.random() * canvas.width -40),
+        Math.floor(Math.random() * canvas.height -40),
+        10
+    );
+    let captureFruta = ()=>{
+        let distX = (personagem.x + personagem.size/2) - (frutas.x + frutas.size/2);
+        let distY = (personagem.y + personagem.size/2) - (frutas.y + frutas.size/2);
+        let sumW = (personagem.size + frutas.size)/2;
+        let sumH = (personagem.size + frutas.size)/2;
+        if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+            frutas.newFruta();
+            shoot.shoot++;
+        }
+        frutas.renderFruta();
+    };
+    let timeFruit = async()=>{
+        frutas.newFruta();
+        await new Promise(r => {setTimeout(r , 10000);});
+        return timeFruit();
+    }
+    let roundRect = (ctx, x, y, width, height, radius, fill, stroke)=>{
+        if (typeof stroke=="undefined"){stroke = true;}
+        if (typeof radius==="undefined"){radius = 5;}
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        if (stroke){ctx.stroke();}
+        if (fill){ctx.fill();} 
+    }
+    let moveShoot = async()=>{
+        let to = shoot.toShoot;
+        let ms = 0.5;
+        for(let i = 0;i < to.length;i++){
+            let sho = to[i];
+            ctx.fillStyle = "#d0180d";
+            roundRect(ctx, sho.x,sho.y, shoot.size,shoot.size, 15, true);
+            let direct = {
+                0 : ()=>{sho.y+=2;},
+                1 : ()=>{sho.y-=2;},
+                2 : ()=>{sho.x-=2;},
+                3 : ()=>{sho.x+=2;}
+            }
+            direct[sho.moveTo]();
+            if(
+                (sho.y < 0)||
+                (sho.y > canvas.height)||
+                (sho.x < 0) ||
+                (sho.x > canvas.width)
+            ){to.splice(i, 1);}
+        }
+    }
+    //
+    //FUNCOES DOS ENEMIES
+    //
+    let enemy = new Enemy();
+    let enemies = async()=>{
+        bossShoot.goFire();
+        enemy.x = Math.random() * canvas.width - 30;
+        enemy.y =  Math.random() * canvas.height - 30;
+        enemy.size = 28;
+        if(enemy.allEnemies.length < 10){
+            enemy.enemyPUSH();
+        }
+        await new Promise(r =>{
+            setTimeout(r, 2000);
+        });
+    }
+    let renderEnemies=()=>{
+        for(let i = 0; i < enemy.allEnemies.length; i++){
+            let all = enemy.allEnemies[i];
+            ctx.fillStyle= enemy.color;
+            roundRect(
+                ctx, 
+                all.x > frutas.x ? all.x -= Math.random() * all.speed : all.x += Math.random() * all.speed, 
+                all.y > frutas.y ? all.y -= Math.random() * all.speed :all.y += Math.random() * all.speed, 
+                enemy.size, enemy.size, 25, true
+            );
+                
+            let distX = (all.x + enemy.size/2) - (frutas.x + frutas.size/2);
+            let distY = (all.y + enemy.size/2) - (frutas.y + frutas.size/2);
+            let sumW = (enemy.size + frutas.size)/2;
+            let sumH = (enemy.size + frutas.size)/2;
+            if(Math.abs(distX) < sumW && Math.abs(distY) < sumH){
+                frutas.x = Math.random() * canvas.width - 50;
+                frutas.y = Math.random() * canvas.height - 50;
+            }
+        }
+    }
+    //
+    //FIM FUNCAO ENEMY
+    //
+    joystick.addEventListener('touchEnd', function(e){movement('Space');});
+    setInterval(()=>{
+        + (joystick.right()	? (movement('ArrowRight')) : '')
+        + (joystick.up()	? (movement('ArrowUp'))	: '')
+        + (joystick.left()	? (movement('ArrowLeft')) : '')
+        + (joystick.down()	? (movement('ArrowDown')) : '');
+    }, 1/30*1000);
+    setInterval(enemies, 2000);
+    setInterval(()=>{
+        bossShoot.moveFire();},50);
+    timeFruit();
+    let shoot = new FrutaShoot(personagem.x, personagem.y, frutas.size);
+    requestAnimationFrame(loop, canvas);
+    window.addEventListener("click",()=>{document.querySelector('audio').play()});
+};
+</script>
